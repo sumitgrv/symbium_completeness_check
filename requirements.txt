@@ -1,0 +1,22 @@
+# Dependencies for completeness_check.py
+# Python 3.8+ recommended
+
+# PDF to image conversion (requires Poppler on system: https://github.com/oschwartz10612/poppler-windows/releases on Windows)
+pdf2image>=1.16.0
+
+# OpenAI API (fine-tuning, chat completions) — uses client-based API (openai>=1.0)
+openai>=1.0.0
+
+# Optional: load OPENAI_API_KEY from .env
+python-dotenv>=1.0.0
+
+# Optional: generate team deck (build_team_deck.py)
+python-pptx>=0.6.21
+
+# API and Streamlit demo (python-multipart required for FastAPI file uploads)
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+python-multipart>=0.0.6
+python-multipart>=0.0.6
+streamlit>=1.28.0
+Pillow>=10.0.0

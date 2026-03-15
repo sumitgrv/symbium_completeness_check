@@ -1,0 +1,47 @@
+# PDFs
+pdfs/
+new_pdfs/
+*.pdf
+
+# Output and generated artifacts
+output/
+
+# Training / validation data and labels
+vision_train.jsonl
+vision_validation.jsonl
+labels.json
+labels_val.json
+
+# Images
+images/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
