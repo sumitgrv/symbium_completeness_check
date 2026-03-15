@@ -1,7 +1,8 @@
-# PDFs
+# PDFs and documents
 pdfs/
 new_pdfs/
 *.pdf
+*.pptx
 
 # Output and generated artifacts
 output/
@@ -11,6 +12,7 @@ vision_train.jsonl
 vision_validation.jsonl
 labels.json
 labels_val.json
+fine_tuned_model.txt
 
 # Images
 images/
