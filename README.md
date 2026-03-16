@@ -26,12 +26,20 @@ It also includes demo apps in `demo/`:
 
 ### 1) Python environment
 
-Use Python 3.8+ (3.10+ recommended).
+Use Python 3.10 for reproducible local runs across scripts, and demos.
+If multiple Python versions are installed, always use the same interpreter for both package install and execution.
 
 ```bash
-python -m venv .venv
+py -3.10 -m venv .venv
 .\.venv\Scripts\activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Quick interpreter check:
+
+```bash
+python -c "import sys; print(sys.executable)"
 ```
 
 ### 2) Poppler (required for PDF conversion)
@@ -48,7 +56,6 @@ Create/update `.env`:
 OPENAI_API_KEY=your_key_here
 FINE_TUNE_BASE_MODEL=gpt-4o-2024-08-06
 # Optional:
-#FINE_TUNE_BASE_MODEL=gpt-4o-2024-08-06
 # FINE_TUNED_MODEL_ID=ft:...
 # OPENAI_BASE_MODELS=gpt-4.1,gpt-4o,gpt-4o-mini
 # STAMP_EXAMPLES_PATH=absolute\path\to\examples\stamp

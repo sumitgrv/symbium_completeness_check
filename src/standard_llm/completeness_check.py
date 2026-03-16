@@ -93,7 +93,7 @@ Return a structured JSON response that follows this schema exactly:
 """
 
 NORTH_ARROW_DETECTION_DESCRIPTION = """
-Carefully examine the image and determine whether it contains a geographical **North direction Symbol** and/or a **Scale Indicator**.
+Carefully examine the image and determine whether it contains a geographical **North direction Symbol**.
 
 ---
 
@@ -118,7 +118,7 @@ Carefully examine the image and determine whether it contains a geographical **N
 ---
 
 ### Important Instructions:
-- **Only detect the North Direction Symbol and its associated scale**, if visible.
+- **Only detect the North Direction Symbol, if visible.
 - Look for **standard architectural or civil drawing conventions** — geographical compass or north direction symbol and scales.
 - Do **not** treat direction-like symbols embedded inside the site diagram or near object labels (e.g., house, driveway) as valid North Arrows.
 - Do **not** interpret "(N)" in equipment labels (e.g., "(N) Inverter", "(N) Panel", "(E) House", "(N) PV Sytem) as a North direction symbol. These are **installation phase indicators** (e.g., New, Existing), not geographic directions.
@@ -135,7 +135,7 @@ Carefully examine the image and determine whether it contains a geographical **N
 ---
 
 ### Output Format:
-Detect the North direction symbol and scale indicator and return a structured JSON-like response based on what is detected:
+Detect the North direction symbol and return a structured JSON-like response based on what is detected:
 
 {json_schema_str}
 """
@@ -144,7 +144,7 @@ STAMP_SYSTEM_MESSAGE = (
     "You are a stamp detector assistant. Examine the page carefully and determine if it contains an official **Professional Engineer (PE) stamp** based on structured printed text (e.g. profession title, state, license). Do not consider City or AHJ approval stamps. Refer to the few-shot examples to see what a valid PE stamp looks like."
 )
 NORTH_ARROW_SYSTEM_MESSAGE = (
-    "You are a helpful assistant specialized in detecting geographic symbols in architectural, site, and construction drawings. Your task is to visually analyze the layout and determine whether the image contains a North Direction Symbol and/or a Scale Indicator. Refer to the few-shot examples to understand what a valid North direction symbol looks like."
+    "You are a helpful assistant specialized in detecting geographic symbols in architectural, site, and construction drawings. Your task is to visually analyze the layout and determine whether the image contains a North Direction Symbol. Refer to the few-shot examples to understand what a valid North direction symbol looks like."
 )
 
 
@@ -328,8 +328,12 @@ if __name__ == "__main__":
         else:
             client = get_client()
             result = predict(client, path_arg)
-            print("Stamp detection:", json.dumps(result["stamp_result"], indent=2))
-            print("North arrow / scale:", json.dumps(result["north_arrow_result"], indent=2))
+            logger.info("Single-image prediction completed for %s", path_arg)
+            logger.info("Stamp detection:\n%s", json.dumps(result["stamp_result"], indent=2, ensure_ascii=False))
+            logger.info(
+                "North arrow detection:\n%s",
+                json.dumps(result["north_arrow_result"], indent=2, ensure_ascii=False),
+            )
     else:
         if not os.path.isdir(NEW_PDF_FOLDER):
             logger.error("NEW_PDF_FOLDER %s not found. Usage: python src/standard_llm/completeness_check.py [path/to/file.pdf]", NEW_PDF_FOLDER)

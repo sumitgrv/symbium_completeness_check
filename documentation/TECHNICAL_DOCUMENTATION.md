@@ -52,6 +52,7 @@ This grounds model behavior on valid visual patterns and helps reduce false posi
 
 ### 2.5 Prompt Template (Standard LLM)
 
+
 #### Stamp Detection Description
 
 ```text
@@ -250,7 +251,7 @@ This mapping is transformed into supervised assistant outputs during dataset gen
 #### Fine-Tuned System Prompt
 
 ```text
-You are a site plan assistant. Every answer MUST follow the North arrow and PE Stamp (and City stamp) definitions below—do not use looser rules.
+You are a site plan assistant. Every answer MUST follow the North arrow and PE Stamp definitions below—do not use looser rules.
 
 Output JSON only, no other text: {"stamp": true/false, "north_arrow": true/false}
 - **north_arrow**: true = "Detected", false = "Not Detected" for a North Direction Symbol (per definitions below).
