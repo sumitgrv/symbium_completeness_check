@@ -16,9 +16,6 @@ fine_tuned_model.txt
 
 # Images
 images/
-*.png
-*.jpg
-*.jpeg
 *.gif
 *.webp
 
