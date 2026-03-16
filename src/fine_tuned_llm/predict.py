@@ -61,21 +61,40 @@ for pdf_path in pdf_paths:
     out_dir = os.path.join(OUTPUT_FOLDER_FINETUNED, pdf_basename)
     os.makedirs(out_dir, exist_ok=True)
     result_path = os.path.join(out_dir, "result.json")
+    metrics_path = os.path.join(out_dir, "metrics.json")
 
     logger.info("Running prediction on: %s", pdf_path)
     predictions = predict_from_pdf(client, pdf_path, model_id=model_id)
 
     pages = []
+    metrics_pages = []
     for prediction in predictions:
         logger.info("[%s] %s", os.path.basename(pdf_path), prediction)
-        row = {"image": prediction.get("image"), "prediction_raw": prediction.get("prediction")}
+        row = {
+            "image": prediction.get("image"),
+            "prediction_raw": prediction.get("prediction"),
+        }
         try:
             row["prediction_parsed"] = json.loads(prediction.get("prediction") or "{}")
         except json.JSONDecodeError:
             row["prediction_parsed"] = None
         pages.append(row)
 
+        request_metrics = prediction.get("request_metrics") or {}
+        metrics_pages.append(
+            {
+                "image": prediction.get("image"),
+                "estimated_time_ms": request_metrics.get("duration_ms"),
+                "total_tokens": request_metrics.get("total_tokens"),
+                "total_cost_usd": request_metrics.get("estimated_total_cost_usd"),
+            }
+        )
+
     payload = {"pdf_path": pdf_path, "pdf_name": pdf_basename, "model_id": model_id, "pages": pages}
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
+    metrics_payload = {"pdf_path": pdf_path, "pdf_name": pdf_basename, "model_id": model_id, "pages": metrics_pages}
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(metrics_payload, f, indent=2, ensure_ascii=False)
     logger.info("Saved results to %s", result_path)
+    logger.info("Saved metrics to %s", metrics_path)

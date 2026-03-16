@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 # Ensure project root is importable when running file path directly.
@@ -27,6 +28,7 @@ from openai import OpenAI
 from src.common.completeness_common import (
     NEW_PDF_FOLDER,
     OUTPUT_FOLDER_STANDARD,
+    build_openai_request_metrics,
     get_client,
     logger,
     pdf_to_images,
@@ -254,12 +256,21 @@ def run_stamp_detection(client: OpenAI, image_data, model: str = DEFAULT_VISION_
             ],
         },
     ]
+    start_ts = time.perf_counter()
     resp = client.chat.completions.create(model=model, messages=messages)
+    duration_ms = (time.perf_counter() - start_ts) * 1000.0
+    request_metrics = build_openai_request_metrics(
+        model_id=model,
+        usage=getattr(resp, "usage", None),
+        duration_ms=duration_ms,
+        request_name="standard_stamp_detection",
+    )
     raw = (resp.choices[0].message.content or "").strip()
     try:
-        return json.loads(raw)
+        parsed = json.loads(raw)
     except json.JSONDecodeError:
-        return extract_json_object(raw)
+        parsed = extract_json_object(raw)
+    return {"result": parsed, "request_metrics": request_metrics}
 
 
 def run_north_arrow_detection(client: OpenAI, image_data, model: str = DEFAULT_VISION_MODEL) -> dict:
@@ -278,19 +289,55 @@ def run_north_arrow_detection(client: OpenAI, image_data, model: str = DEFAULT_V
             ],
         },
     ]
+    start_ts = time.perf_counter()
     resp = client.chat.completions.create(model=model, messages=messages)
+    duration_ms = (time.perf_counter() - start_ts) * 1000.0
+    request_metrics = build_openai_request_metrics(
+        model_id=model,
+        usage=getattr(resp, "usage", None),
+        duration_ms=duration_ms,
+        request_name="standard_north_arrow_detection",
+    )
     raw = (resp.choices[0].message.content or "").strip()
     try:
-        return json.loads(raw)
+        parsed = json.loads(raw)
     except json.JSONDecodeError:
-        return extract_json_object(raw)
+        parsed = extract_json_object(raw)
+    return {"result": parsed, "request_metrics": request_metrics}
 
 
 def predict(client: OpenAI, image_path_or_bytes, model: str = None):
     model = model or DEFAULT_VISION_MODEL
-    stamp_result = run_stamp_detection(client, image_path_or_bytes, model=model)
-    north_arrow_result = run_north_arrow_detection(client, image_path_or_bytes, model=model)
-    return {"stamp_result": stamp_result, "north_arrow_result": north_arrow_result}
+    stamp_out = run_stamp_detection(client, image_path_or_bytes, model=model)
+    north_out = run_north_arrow_detection(client, image_path_or_bytes, model=model)
+
+    stamp_metrics = stamp_out.get("request_metrics", {})
+    north_metrics = north_out.get("request_metrics", {})
+    page_duration_ms = float(stamp_metrics.get("duration_ms", 0.0) or 0.0) + float(north_metrics.get("duration_ms", 0.0) or 0.0)
+    page_prompt_tokens = int(stamp_metrics.get("prompt_tokens", 0) or 0) + int(north_metrics.get("prompt_tokens", 0) or 0)
+    page_completion_tokens = int(stamp_metrics.get("completion_tokens", 0) or 0) + int(north_metrics.get("completion_tokens", 0) or 0)
+    page_total_tokens = int(stamp_metrics.get("total_tokens", 0) or 0) + int(north_metrics.get("total_tokens", 0) or 0)
+
+    stamp_cost = stamp_metrics.get("estimated_total_cost_usd")
+    north_cost = north_metrics.get("estimated_total_cost_usd")
+    page_total_cost = None if (stamp_cost is None or north_cost is None) else round(float(stamp_cost) + float(north_cost), 8)
+
+    return {
+        "stamp_result": stamp_out.get("result"),
+        "north_arrow_result": north_out.get("result"),
+        "request_metrics": {
+            "stamp_detection": stamp_metrics,
+            "north_arrow_detection": north_metrics,
+            "page_total": {
+                "duration_ms": round(page_duration_ms, 2),
+                "prompt_tokens": page_prompt_tokens,
+                "completion_tokens": page_completion_tokens,
+                "total_tokens": page_total_tokens,
+                "estimated_total_cost_usd": page_total_cost,
+                "cost_estimation_available": page_total_cost is not None,
+            },
+        },
+    }
 
 
 def predict_from_pdf(client: OpenAI, pdf_path: str, model: str = None):
@@ -301,7 +348,14 @@ def predict_from_pdf(client: OpenAI, pdf_path: str, model: str = None):
     for idx, img_path in enumerate(image_paths):
         logger.info("Page %d/%d: %s", idx + 1, len(image_paths), img_path)
         out = predict(client, img_path, model=model)
-        results.append({"image": img_path, "stamp_result": out["stamp_result"], "north_arrow_result": out["north_arrow_result"]})
+        results.append(
+            {
+                "image": img_path,
+                "stamp_result": out["stamp_result"],
+                "north_arrow_result": out["north_arrow_result"],
+                "request_metrics": out.get("request_metrics"),
+            }
+        )
     logger.info("Standard-LLM prediction complete for %s: %d page(s)", pdf_path, len(results))
     return results
 
@@ -319,16 +373,37 @@ def run_pdfs(pdf_paths: list, model: str = None):
         out_dir = os.path.join(OUTPUT_FOLDER_STANDARD, pdf_basename)
         os.makedirs(out_dir, exist_ok=True)
         result_path = os.path.join(out_dir, "result.json")
+        metrics_path = os.path.join(out_dir, "metrics.json")
 
         predictions = predict_from_pdf(client, pdf_path, model=model)
         pages = []
+        metrics_pages = []
         for p in predictions:
-            pages.append({"image": p["image"], "stamp_result": p["stamp_result"], "north_arrow_result": p["north_arrow_result"]})
+            page_metrics = (p.get("request_metrics") or {}).get("page_total", {})
+            pages.append(
+                {
+                    "image": p["image"],
+                    "stamp_result": p["stamp_result"],
+                    "north_arrow_result": p["north_arrow_result"],
+                }
+            )
+            metrics_pages.append(
+                {
+                    "image": p["image"],
+                    "estimated_time_ms": page_metrics.get("duration_ms"),
+                    "total_tokens": page_metrics.get("total_tokens"),
+                    "total_cost_usd": page_metrics.get("estimated_total_cost_usd"),
+                }
+            )
 
         payload = {"pdf_path": pdf_path, "pdf_name": pdf_basename, "model_id": model, "pages": pages}
         with open(result_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
+        metrics_payload = {"pdf_path": pdf_path, "pdf_name": pdf_basename, "model_id": model, "pages": metrics_pages}
+        with open(metrics_path, "w", encoding="utf-8") as f:
+            json.dump(metrics_payload, f, indent=2, ensure_ascii=False)
         logger.info("Saved results to %s", result_path)
+        logger.info("Saved metrics to %s", metrics_path)
 
 
 if __name__ == "__main__":
