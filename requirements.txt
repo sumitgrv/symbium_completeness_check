@@ -10,9 +10,6 @@ openai>=1.0.0
 # Optional: load OPENAI_API_KEY from .env
 python-dotenv>=1.0.0
 
-# Optional: generate team deck (build_team_deck.py)
-python-pptx>=0.6.21
-
 # API and Streamlit demo (python-multipart required for FastAPI file uploads)
 fastapi>=0.100.0
 uvicorn[standard]>=0.22.0
