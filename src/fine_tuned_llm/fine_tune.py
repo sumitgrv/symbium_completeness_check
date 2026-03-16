@@ -1,23 +1,27 @@
 """
-Part 2: Fine-tuning.
-- Uploads vision_train.jsonl (required).
-- Optionally uploads vision_validation.jsonl and sets validation_file for metrics.
-Run after 1_prepare_training_validation_data.py.
+Fine-tuning script.
 """
 import os
+import sys
 import time
-from completeness_common import (
-    logger,
-    get_client,
+from pathlib import Path
+
+# Ensure project root is importable when running file path directly.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.common.completeness_common import (
     DATASET_JSONL,
     DATASET_VALIDATION_JSONL,
     FINE_TUNE_BASE_MODEL,
     FINE_TUNED_MODEL_FILE,
+    get_client,
+    logger,
     save_fine_tuned_model,
 )
 
 logger.info("=== Part 2: Fine-tuning ===")
-
 client = get_client()
 
 logger.info("Uploading training file: %s", DATASET_JSONL)

@@ -1,21 +1,22 @@
 """
 Shared config, logger, and helpers for training data preparation, fine-tuning, and prediction.
 """
-import os
+import base64
 import json
+import logging
+import os
+
+from openai import OpenAI
+from pdf2image import convert_from_path
+
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
-import logging
-import base64
-from pdf2image import convert_from_path
-from openai import OpenAI
 
-# ----------------------------
-# Logger
-# ----------------------------
+
 def setup_logger(name="completeness_check", level=logging.INFO, log_file=None):
     logger = logging.getLogger(name)
     if logger.handlers:
@@ -34,19 +35,17 @@ def setup_logger(name="completeness_check", level=logging.INFO, log_file=None):
         logger.addHandler(fh)
     return logger
 
+
 logger = setup_logger("completeness_check", log_file="completeness_check.log")
 
-# ----------------------------
-# Config
-# ----------------------------
 DATASET_JSONL = "vision_train.jsonl"
 LABELS_JSON = "labels.json"
 DATASET_VALIDATION_JSONL = "vision_validation.jsonl"
 LABELS_VAL_JSON = "labels_val.json"
 PDF_FOLDER = "pdfs/"
-IMAGE_FOLDER = "images/"  # all PDF→image output (train + validation) under images/<pdf_name>/
+IMAGE_FOLDER = "images/"
 NEW_PDF_FOLDER = "new_pdfs/"
-OUTPUT_FOLDER = "output/"  # legacy; use OUTPUT_FOLDER_FINETUNED or OUTPUT_FOLDER_STANDARD
+OUTPUT_FOLDER = "output/"
 OUTPUT_FOLDER_FINETUNED = "output/fine_tuned_llm/"
 OUTPUT_FOLDER_STANDARD = "output/standard_llm/"
 FINE_TUNE_BASE_MODEL = os.getenv("FINE_TUNE_BASE_MODEL", "gpt-4o-2024-08-06")
@@ -54,16 +53,12 @@ FINE_TUNED_MODEL_FILE = "fine_tuned_model.txt"
 
 
 def get_client():
-    """OpenAI client (requires OPENAI_API_KEY in environment)."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
     return OpenAI(api_key=api_key)
 
 
-# ----------------------------
-# System prompt
-# ----------------------------
 SITE_PLAN_SYSTEM_PROMPT = """You are a site plan assistant. Every answer MUST follow the North arrow and PE Stamp (and City stamp) definitions below—do not use looser rules.
 
 Output JSON only, no other text: {"stamp": true/false, "north_arrow": true/false}
@@ -138,7 +133,6 @@ Official approval by city, county, district, or AHJ.
 - Do not treat logos or decorative graphics as stamps or north arrows.
 - Respond with JSON only: {"stamp": true/false, "north_arrow": true/false}."""
 
-# User text used only at prediction time so the model explicitly applies north_arrow + PE stamp rules
 PREDICTION_USER_INSTRUCTION = (
     "Analyze this plan sheet image. "
     "For north_arrow: apply ONLY the North Direction Symbol rules (reject (N)/(E) phase labels, flow arrows, diagram arrows). "
@@ -146,26 +140,21 @@ PREDICTION_USER_INSTRUCTION = (
     "Reply with JSON only: {\"stamp\": true/false, \"north_arrow\": true/false}."
 )
 
-# ----------------------------
-# Helpers
-# ----------------------------
+
 def load_fine_tuned_model():
-    """Load fine-tuned model name from disk."""
     if os.path.isfile(FINE_TUNED_MODEL_FILE):
-        with open(FINE_TUNED_MODEL_FILE, "r") as f:
+        with open(FINE_TUNED_MODEL_FILE, "r", encoding="utf-8") as f:
             return f.read().strip() or None
     return None
 
 
 def save_fine_tuned_model(model_name):
-    """Persist fine-tuned model name to disk."""
-    with open(FINE_TUNED_MODEL_FILE, "w") as f:
+    with open(FINE_TUNED_MODEL_FILE, "w", encoding="utf-8") as f:
         f.write(model_name)
     logger.info("Saved fine-tuned model name to %s: %s", FINE_TUNED_MODEL_FILE, model_name)
 
 
 def pdf_to_images(pdf_path, output_folder=None, dpi=200):
-    """Save page images under IMAGE_FOLDER/<pdf name>/<pdf name>_page_N.png. N is 1-based (page 1, 2, 3...)."""
     output_folder = output_folder or IMAGE_FOLDER
     pdf_basename = os.path.splitext(os.path.basename(pdf_path))[0]
     pdf_dir = os.path.join(output_folder, pdf_basename)
@@ -174,7 +163,7 @@ def pdf_to_images(pdf_path, output_folder=None, dpi=200):
     pages = convert_from_path(pdf_path, dpi=dpi)
     image_paths = []
     for i, page in enumerate(pages):
-        page_num = i + 1  # 1-based to match labels.json (page 1, 2, 3...)
+        page_num = i + 1
         image_file = os.path.join(pdf_dir, f"{pdf_basename}_page_{page_num}.png")
         page.save(image_file)
         image_paths.append(image_file)
@@ -183,7 +172,6 @@ def pdf_to_images(pdf_path, output_folder=None, dpi=200):
 
 
 def image_path_to_data_url(image_path):
-    """Encode local image as base64 data URL for OpenAI API."""
     with open(image_path, "rb") as f:
         b64 = base64.standard_b64encode(f.read()).decode("ascii")
     ext = os.path.splitext(image_path)[1].lower()
@@ -192,21 +180,19 @@ def image_path_to_data_url(image_path):
 
 
 def parse_image_path(img_path):
-    """From path like 'images/Some PDF Name/Some PDF Name_page_1.png' return (pdf_name, page_num). Page num is 1-based (matches labels.json)."""
     basename = os.path.basename(img_path)
     name_no_ext = basename[:-4] if basename.lower().endswith(".png") else basename
     if "_page_" not in name_no_ext:
         return None, 1
     pdf_name, page_part = name_no_ext.rsplit("_page_", 1)
     try:
-        page_num = int(page_part)  # already 1-based in filename
+        page_num = int(page_part)
         return pdf_name, page_num
     except ValueError:
         return pdf_name, 1
 
 
 def create_jsonl_entry(image_path, stamp, north_arrow):
-    """Build one JSONL training entry (uses SITE_PLAN_SYSTEM_PROMPT and base64 image)."""
     image_url = image_path_to_data_url(image_path)
     return {
         "messages": [
@@ -219,10 +205,9 @@ def create_jsonl_entry(image_path, stamp, north_arrow):
 
 
 def predict_from_pdf(client, pdf_path, model_id=None):
-    """Run detection on each page of a PDF. model_id defaults to saved fine-tuned model."""
     model_id = model_id or load_fine_tuned_model()
     if not model_id:
-        raise ValueError("No fine-tuned model id; run 2_fine_tune.py first or set " + FINE_TUNED_MODEL_FILE)
+        raise ValueError("No fine-tuned model id; run fine_tune.py first or set " + FINE_TUNED_MODEL_FILE)
     logger.info("Running prediction on PDF: %s (model=%s)", pdf_path, model_id)
     images = pdf_to_images(pdf_path)
     results = []
@@ -233,8 +218,8 @@ def predict_from_pdf(client, pdf_path, model_id=None):
             model=model_id,
             messages=[
                 {"role": "system", "content": SITE_PLAN_SYSTEM_PROMPT},
-            {"role": "user", "content": PREDICTION_USER_INSTRUCTION},
-            {"role": "user", "content": [{"type": "image_url", "image_url": {"url": image_url}}]},
+                {"role": "user", "content": PREDICTION_USER_INSTRUCTION},
+                {"role": "user", "content": [{"type": "image_url", "image_url": {"url": image_url}}]},
             ],
         )
         output = response.choices[0].message.content
@@ -244,17 +229,11 @@ def predict_from_pdf(client, pdf_path, model_id=None):
 
 
 def image_bytes_to_data_url(image_bytes: bytes, mime: str = "image/png") -> str:
-    """Convert raw image bytes to a data URL for the API."""
     b64 = base64.standard_b64encode(image_bytes).decode("ascii")
     return f"data:{mime};base64,{b64}"
 
 
 def predict_single_image(client, image_data, model_id=None, mime=None):
-    """
-    Run detection on a single image. image_data: bytes or path (str).
-    mime: optional, e.g. 'image/jpeg' when image_data is bytes (default image/png).
-    Returns dict with prediction_raw, stamp, north_arrow (parsed), and prediction_parsed.
-    """
     model_id = model_id or load_fine_tuned_model()
     if not model_id:
         raise ValueError("No fine-tuned model id; set " + FINE_TUNED_MODEL_FILE + " or FINE_TUNED_MODEL_ID")

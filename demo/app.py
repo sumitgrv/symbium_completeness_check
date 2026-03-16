@@ -1,17 +1,25 @@
 """
 API for site plan completeness (stamp / north arrow) using the fine-tuned model.
 POST /predict: upload an image file, get JSON with stamp, north_arrow, prediction_raw.
-Run: python app.py  (or uvicorn app:app --reload)
+Run: python demo/app.py  (or uvicorn demo.app:app --reload)
 """
 import os
-from fastapi import FastAPI, File, UploadFile, HTTPException
+import sys
+from pathlib import Path
+
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from completeness_common import (
+# Ensure project root is importable when running `python demo/app.py`.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.common.completeness_common import (
     get_client,
     load_fine_tuned_model,
-    predict_single_image,
     logger,
+    predict_single_image,
 )
 
 app = FastAPI(
@@ -60,7 +68,7 @@ async def predict(image: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="File must be an image (e.g. image/png, image/jpeg)")
     try:
         body = await image.read()
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to read upload")
         raise HTTPException(status_code=400, detail="Failed to read file")
     if not body:
@@ -85,4 +93,5 @@ async def predict(image: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+
+    uvicorn.run("demo.app:app", host="0.0.0.0", port=8000, reload=True)

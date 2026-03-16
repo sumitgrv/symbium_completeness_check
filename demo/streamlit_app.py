@@ -1,28 +1,33 @@
 """
 Streamlit demo: upload a plan sheet image and run completeness check.
 Supports Prompt-Based (Standard LLM) or Fine-Tuned Model via sidebar configuration.
-Run: streamlit run streamlit_app.py
+Run: streamlit run demo/streamlit_app.py
 """
 import os
+import sys
+from pathlib import Path
+
 import streamlit as st
 from PIL import Image
 
-from completeness_common import (
+# Ensure project root is importable when running `streamlit run demo/streamlit_app.py`.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.common.completeness_common import (
+    FINE_TUNE_BASE_MODEL,
     get_client,
     load_fine_tuned_model,
-    predict_single_image,
     logger,
+    predict_single_image,
 )
-from completeness_check_using_standard_llm import predict as predict_standard_llm
+from src.standard_llm.completeness_check import predict as predict_standard_llm
 
-st.set_page_config(page_title="Site Plan Completeness", page_icon="📋", layout="centered")
+st.set_page_config(page_title="Completeness Check", page_icon="📋", layout="centered")
 
-# ---------------------------------------------------------------------------
-# Sidebar: Model Configuration
-# ---------------------------------------------------------------------------
 with st.sidebar:
     st.header("Model Configuration")
-
     approach = st.radio(
         "Inference approach",
         ["Prompt-Based (Standard LLM)", "Fine-Tuned Model"],
@@ -31,12 +36,7 @@ with st.sidebar:
     )
 
     if approach == "Prompt-Based (Standard LLM)":
-        base_models = [
-            "gpt-4.1",
-            "gpt-4o",
-            "gpt-4o-mini",
-        ]
-        # Allow env override for extra models: OPENAI_BASE_MODELS=gpt-4o,gpt-4o-mini,gpt-4.1
+        base_models = ["gpt-4.1", "gpt-4o", "gpt-4o-mini"]
         env_models = os.getenv("OPENAI_BASE_MODELS", "").strip()
         if env_models:
             base_models = [m.strip() for m in env_models.split(",") if m.strip()]
@@ -48,15 +48,12 @@ with st.sidebar:
         )
         model_id = selected_base
     else:
-        # Fine-Tuned Model: optional dropdown + text input
-        client = None
+        ft_base_model = (os.getenv("FINE_TUNE_BASE_MODEL") or FINE_TUNE_BASE_MODEL or "").strip()
+        st.caption(f"Base model: {ft_base_model or 'Not set'}")
+
         try:
             client = get_client()
-            ft_models = []
-            for m in client.models.list().data:
-                if getattr(m, "id", "").startswith("ft:"):
-                    ft_models.append(m.id)
-            ft_models = sorted(ft_models)
+            ft_models = sorted([m.id for m in client.models.list().data if getattr(m, "id", "").startswith("ft:")])
         except Exception:
             ft_models = []
 
@@ -71,32 +68,28 @@ with st.sidebar:
                 model_id = dropdown_option
             else:
                 default_ft_id = load_fine_tuned_model() or (os.getenv("FINE_TUNED_MODEL_ID") or os.getenv("MODEL_ID") or "").strip() or ""
-                manual_ft_id = st.text_input(
+                model_id = st.text_input(
                     "Enter Fine-Tuned Model ID",
                     value=default_ft_id,
                     placeholder="e.g. ft:gpt-4o-2024-08-06:org:...",
                     help="Paste your fine-tuned model ID if not listed above.",
-                )
-                model_id = (manual_ft_id or "").strip()
+                ).strip()
         else:
             default_ft_id = load_fine_tuned_model() or (os.getenv("FINE_TUNED_MODEL_ID") or os.getenv("MODEL_ID") or "").strip() or ""
-            manual_ft_id = st.text_input(
+            model_id = st.text_input(
                 "Enter Fine-Tuned Model ID",
                 value=default_ft_id,
                 placeholder="e.g. ft:gpt-4o-2024-08-06:org:...",
                 help="Paste your fine-tuned model ID (dropdown is empty if listing failed).",
-            )
-            model_id = (manual_ft_id or "").strip()
+            ).strip()
+        st.caption(f"Model ID: {model_id or 'Not set'}")
 
-# ---------------------------------------------------------------------------
-# Main area
-# ---------------------------------------------------------------------------
-st.title("Permit Plan Completeness CheckDemo")
+st.title("Permit Plan Completeness Check Demo")
 caption = "Upload a permit plan sheet image to detect **PE stamp** and **North arrow**."
 if approach == "Prompt-Based (Standard LLM)":
     st.caption(caption + f" _(Prompt-based · {model_id})_")
 else:
-    st.caption(caption + " _(Fine-tuned model)_")
+    st.caption(caption + " _(Fine-tuned)_")
 
 uploaded = st.file_uploader("Choose an image (PNG / JPEG)", type=["png", "jpg", "jpeg"])
 if not uploaded:
@@ -114,12 +107,11 @@ if approach == "Fine-Tuned Model" and not model_id:
     st.stop()
 
 if st.button("Run prediction"):
-    with st.spinner("Running prediction…"):
+    with st.spinner("Running prediction..."):
         try:
             client = get_client()
             if approach == "Prompt-Based (Standard LLM)":
                 out = predict_standard_llm(client, img_bytes, model=model_id)
-                # Normalize to same shape as fine-tuned output for display
                 stamp_yes = (out.get("stamp_result") or {}).get("checkStampPresence", "").strip().lower() == "yes"
                 north_yes = (out.get("north_arrow_result") or {}).get("NorthDirectionSymbol", "").strip().lower() == "detected"
                 display = {
@@ -151,10 +143,8 @@ if st.button("Run prediction"):
         st.image(img, use_container_width=True, caption="Uploaded image")
     with col2:
         st.subheader("Result")
-        stamp = display.get("stamp")
-        north_arrow = display.get("north_arrow")
-        st.metric("PE stamp", "Yes" if stamp else "No")
-        st.metric("North arrow", "Yes" if north_arrow else "No")
+        st.metric("PE stamp", "Yes" if display.get("stamp") else "No")
+        st.metric("North arrow", "Yes" if display.get("north_arrow") else "No")
     with st.expander("Raw model output"):
         st.json(display.get("prediction_parsed") or {"raw": display.get("prediction_raw")})
         raw = display.get("prediction_raw")

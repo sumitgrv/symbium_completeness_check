@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 _default_north_dir = os.path.join(_project_root, "examples", "north_direction")
 north_dir_img_dir = os.getenv("NORTH_DIR_EXAMPLES_PATH", _default_north_dir)
 

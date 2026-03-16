@@ -2,52 +2,46 @@
 Completeness check using standard (prompt-based) vision LLM (e.g. gpt-4o).
 Reads all PDFs in new_pdfs, runs page-by-page stamp and north-arrow detection,
 and saves results to output/standard_llm/<pdf_name>/result.json.
-
-Usage:
-  python completeness_check_using_standard_llm.py
-      → process all PDFs in new_pdfs/
-  python completeness_check_using_standard_llm.py path/to/file.pdf
-      → process that PDF only
-  python completeness_check_using_standard_llm.py path/to/image.png
-      → single-image prediction (prints to stdout)
-
-Requires: OPENAI_API_KEY. Optional: OPENAI_VISION_MODEL (default gpt-4o).
 """
 import base64
 import json
 import os
 import re
 import sys
+from pathlib import Path
+
+# Ensure project root is importable when running file path directly.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
 
 from openai import OpenAI
 
-from completeness_common import (
-    logger,
-    get_client,
+from src.common.completeness_common import (
     NEW_PDF_FOLDER,
     OUTPUT_FOLDER_STANDARD,
+    get_client,
+    logger,
     pdf_to_images,
 )
 
-# Load few-shot examples from few_shot_examples (uses project examples/ folder)
 try:
-    from few_shot_examples.stamp_examples import STAMP_EXAMPLES
-    from few_shot_examples.north_direction_examples import NORTH_DIR_EXAMPLES
+    from src.standard_llm.few_shot_examples.north_direction_examples import NORTH_DIR_EXAMPLES
+    from src.standard_llm.few_shot_examples.stamp_examples import STAMP_EXAMPLES
 except Exception as e:
     logger.warning("Few-shot examples not loaded: %s. Using no examples.", e)
     STAMP_EXAMPLES = []
     NORTH_DIR_EXAMPLES = []
 
-# Default model for prompt-based vision (not the fine-tuned one)
 DEFAULT_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4o")
 
-# JSON schemas injected into prompts (PE stamp only; City stamp not checked)
 STAMP_JSON_SCHEMA = {
     "checkStampPresence": "Yes or No",
     "CheckStampType": [
@@ -59,10 +53,6 @@ STAMP_JSON_SCHEMA = {
 NORTH_ARROW_JSON_SCHEMA = {
     "NorthDirectionSymbol": "Detected or Not Detected",
 }
-
-# ---------------------------------------------------------------------------
-# Exact prompts (as provided)
-# ---------------------------------------------------------------------------
 
 STAMP_DETECTION_DESCRIPTION = """
 ### Definition of valid stamp (PE only)
@@ -87,7 +77,7 @@ A **Professional Engineer (PE) stamp** demonstrates that a professional engineer
 - Do not confuse logos, decorative symbols, or abstract shapes with stamps.
 - A valid PE stamp may be partially covered by a signature—focus on the structured, printed portion.
 
---- 
+---
 
 You will be shown an image of a document. Based on the definition and characteristics above, determine whether the image contains a **valid PE stamp**.
 
@@ -185,7 +175,6 @@ def extract_json_object(text: str) -> dict:
 
 
 def _few_shot_stamp_messages():
-    """Build list of user/assistant message pairs for stamp few-shot (like FewShotStampExamples().to_messages())."""
     messages = []
     for idx, ex in enumerate(STAMP_EXAMPLES):
         image_path = ex.get("image_path")
@@ -197,19 +186,20 @@ def _few_shot_stamp_messages():
         if expected is None:
             continue
         image_url = encode_image(image_path)
-        messages.append({
-            "role": "user",
-            "content": [
-                {"type": "text", "text": f"Few-shot example {idx + 1}: {desc}"},
-                {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
-            ],
-        })
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"Few-shot example {idx + 1}: {desc}"},
+                    {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+                ],
+            }
+        )
         messages.append({"role": "assistant", "content": json.dumps(expected)})
     return messages
 
 
 def _few_shot_north_messages():
-    """Build list of user/assistant message pairs for north direction few-shot (like FewShotNorthDirectionExamples().to_messages())."""
     messages = []
     for idx, ex in enumerate(NORTH_DIR_EXAMPLES):
         image_path = ex.get("image_path")
@@ -221,19 +211,20 @@ def _few_shot_north_messages():
         if expected is None:
             continue
         image_url = encode_image(image_path)
-        messages.append({
-            "role": "user",
-            "content": [
-                {"type": "text", "text": f"Few-shot example {idx + 1}: {desc}"},
-                {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
-            ],
-        })
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"Few-shot example {idx + 1}: {desc}"},
+                    {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+                ],
+            }
+        )
         messages.append({"role": "assistant", "content": json.dumps(expected)})
     return messages
 
 
 def run_stamp_detection(client: OpenAI, image_data, model: str = DEFAULT_VISION_MODEL) -> dict:
-    """Run stamp detection using prompt-based standard LLM with few-shot examples."""
     json_schema_str = json.dumps(STAMP_JSON_SCHEMA, indent=2)
     user_text = STAMP_DETECTION_DESCRIPTION.format(json_schema_str=json_schema_str)
     image_url = image_data if isinstance(image_data, str) and image_data.startswith("data:") else encode_image(image_data)
@@ -258,7 +249,6 @@ def run_stamp_detection(client: OpenAI, image_data, model: str = DEFAULT_VISION_
 
 
 def run_north_arrow_detection(client: OpenAI, image_data, model: str = DEFAULT_VISION_MODEL) -> dict:
-    """Run north direction / scale detection using prompt-based standard LLM with few-shot examples."""
     json_schema_str = json.dumps(NORTH_ARROW_JSON_SCHEMA, indent=2)
     user_text = NORTH_ARROW_DETECTION_DESCRIPTION.format(json_schema_str=json_schema_str)
     image_url = image_data if isinstance(image_data, str) and image_data.startswith("data:") else encode_image(image_data)
@@ -283,7 +273,6 @@ def run_north_arrow_detection(client: OpenAI, image_data, model: str = DEFAULT_V
 
 
 def predict(client: OpenAI, image_path_or_bytes, model: str = None):
-    """Run both stamp and north-arrow prompt-based detection. Returns dict with stamp_result and north_arrow_result."""
     model = model or DEFAULT_VISION_MODEL
     stamp_result = run_stamp_detection(client, image_path_or_bytes, model=model)
     north_arrow_result = run_north_arrow_detection(client, image_path_or_bytes, model=model)
@@ -291,7 +280,6 @@ def predict(client: OpenAI, image_path_or_bytes, model: str = None):
 
 
 def predict_from_pdf(client: OpenAI, pdf_path: str, model: str = None):
-    """Run page-by-page stamp and north-arrow detection on a PDF. Returns list of {image, stamp_result, north_arrow_result}."""
     model = model or DEFAULT_VISION_MODEL
     logger.info("Running standard-LLM prediction on PDF: %s (model=%s)", pdf_path, model)
     image_paths = pdf_to_images(pdf_path)
@@ -299,17 +287,12 @@ def predict_from_pdf(client: OpenAI, pdf_path: str, model: str = None):
     for idx, img_path in enumerate(image_paths):
         logger.info("Page %d/%d: %s", idx + 1, len(image_paths), img_path)
         out = predict(client, img_path, model=model)
-        results.append({
-            "image": img_path,
-            "stamp_result": out["stamp_result"],
-            "north_arrow_result": out["north_arrow_result"],
-        })
+        results.append({"image": img_path, "stamp_result": out["stamp_result"], "north_arrow_result": out["north_arrow_result"]})
     logger.info("Standard-LLM prediction complete for %s: %d page(s)", pdf_path, len(results))
     return results
 
 
 def run_pdfs(pdf_paths: list, model: str = None):
-    """Process one or more PDFs and save result.json under output/standard_llm/<pdf_name>/."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY is not set")
@@ -326,19 +309,9 @@ def run_pdfs(pdf_paths: list, model: str = None):
         predictions = predict_from_pdf(client, pdf_path, model=model)
         pages = []
         for p in predictions:
-            row = {
-                "image": p["image"],
-                "stamp_result": p["stamp_result"],
-                "north_arrow_result": p["north_arrow_result"],
-            }
-            pages.append(row)
+            pages.append({"image": p["image"], "stamp_result": p["stamp_result"], "north_arrow_result": p["north_arrow_result"]})
 
-        payload = {
-            "pdf_path": pdf_path,
-            "pdf_name": pdf_basename,
-            "model_id": model,
-            "pages": pages,
-        }
+        payload = {"pdf_path": pdf_path, "pdf_name": pdf_basename, "model_id": model, "pages": pages}
         with open(result_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
         logger.info("Saved results to %s", result_path)
@@ -353,14 +326,13 @@ if __name__ == "__main__":
         if path_arg.lower().endswith(".pdf"):
             run_pdfs([path_arg])
         else:
-            # Single image: print results to stdout
             client = get_client()
             result = predict(client, path_arg)
             print("Stamp detection:", json.dumps(result["stamp_result"], indent=2))
             print("North arrow / scale:", json.dumps(result["north_arrow_result"], indent=2))
     else:
         if not os.path.isdir(NEW_PDF_FOLDER):
-            logger.error("NEW_PDF_FOLDER %s not found. Usage: python completeness_check_using_standard_llm.py [path/to/file.pdf]", NEW_PDF_FOLDER)
+            logger.error("NEW_PDF_FOLDER %s not found. Usage: python src/standard_llm/completeness_check.py [path/to/file.pdf]", NEW_PDF_FOLDER)
             sys.exit(1)
         pdf_paths = [
             os.path.join(NEW_PDF_FOLDER, f)
@@ -368,7 +340,7 @@ if __name__ == "__main__":
             if f.lower().endswith(".pdf")
         ]
         if not pdf_paths:
-            logger.error("No PDFs in %s. Pass a path: python completeness_check_using_standard_llm.py path/to/file.pdf", NEW_PDF_FOLDER)
+            logger.error("No PDFs in %s. Pass a path: python src/standard_llm/completeness_check.py path/to/file.pdf", NEW_PDF_FOLDER)
             sys.exit(1)
         logger.info("Processing %d PDF(s) in %s", len(pdf_paths), NEW_PDF_FOLDER)
         run_pdfs(pdf_paths)

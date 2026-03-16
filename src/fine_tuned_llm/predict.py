@@ -1,19 +1,22 @@
 """
-Part 3: Prediction.
-- Loads the fine-tuned model from fine_tuned_model.txt or .env (FINE_TUNED_MODEL_ID).
-- Runs detection on PDF(s): all PDFs in NEW_PDF_FOLDER by default, or pass one path as argument.
-- Saves results to output/fine_tuned_llm/<pdf_name>/result.json per PDF.
-Run after 2_fine_tune.py. Requires OPENAI_API_KEY.
+Prediction script for fine-tuned model.
 """
 import json
 import os
 import sys
-from completeness_common import (
-    logger,
-    get_client,
+from pathlib import Path
+
+# Ensure project root is importable when running file path directly.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.common.completeness_common import (
     NEW_PDF_FOLDER,
     OUTPUT_FOLDER_FINETUNED,
+    get_client,
     load_fine_tuned_model,
+    logger,
     predict_from_pdf,
 )
 
@@ -26,8 +29,8 @@ if not model_id:
         logger.info("Using model id from .env (FINE_TUNED_MODEL_ID or MODEL_ID)")
 if not model_id:
     logger.error(
-        "No fine-tuned model id. Run 2_fine_tune.py (writes fine_tuned_model.txt), "
-        "or set FINE_TUNED_MODEL_ID in .env (e.g. ft:gpt-4o-2024-08-06:org:...)."
+        "No fine-tuned model id. Run fine_tune.py first (writes fine_tuned_model.txt), "
+        "or set FINE_TUNED_MODEL_ID in .env."
     )
     sys.exit(1)
 
@@ -39,7 +42,7 @@ if len(sys.argv) > 1:
 else:
     if not os.path.isdir(NEW_PDF_FOLDER):
         logger.error(
-            "NEW_PDF_FOLDER %s not found. Usage: python 3_predict.py [path/to/file.pdf]",
+            "NEW_PDF_FOLDER %s not found. Usage: python src/fine_tuned_llm/predict.py [path/to/file.pdf]",
             NEW_PDF_FOLDER,
         )
         sys.exit(1)
@@ -49,7 +52,7 @@ else:
         if f.lower().endswith(".pdf")
     ]
     if not pdf_paths:
-        logger.error("No PDFs in %s. Pass a path: python 3_predict.py path/to/file.pdf", NEW_PDF_FOLDER)
+        logger.error("No PDFs in %s. Pass a path: python src/fine_tuned_llm/predict.py path/to/file.pdf", NEW_PDF_FOLDER)
         sys.exit(1)
     logger.info("Predicting on %d PDF(s) in %s", len(pdf_paths), NEW_PDF_FOLDER)
 
@@ -63,24 +66,16 @@ for pdf_path in pdf_paths:
     predictions = predict_from_pdf(client, pdf_path, model_id=model_id)
 
     pages = []
-    for p in predictions:
-        logger.info("[%s] %s", os.path.basename(pdf_path), p)
-        row = {
-            "image": p.get("image"),
-            "prediction_raw": p.get("prediction"),
-        }
+    for prediction in predictions:
+        logger.info("[%s] %s", os.path.basename(pdf_path), prediction)
+        row = {"image": prediction.get("image"), "prediction_raw": prediction.get("prediction")}
         try:
-            row["prediction_parsed"] = json.loads(p.get("prediction") or "{}")
+            row["prediction_parsed"] = json.loads(prediction.get("prediction") or "{}")
         except json.JSONDecodeError:
             row["prediction_parsed"] = None
         pages.append(row)
 
-    payload = {
-        "pdf_path": pdf_path,
-        "pdf_name": pdf_basename,
-        "model_id": model_id,
-        "pages": pages,
-    }
+    payload = {"pdf_path": pdf_path, "pdf_name": pdf_basename, "model_id": model_id, "pages": pages}
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
     logger.info("Saved results to %s", result_path)

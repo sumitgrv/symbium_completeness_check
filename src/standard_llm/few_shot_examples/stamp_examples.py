@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 _default_stamp_dir = os.path.join(_project_root, "examples", "stamp")
 stamp_img_dir = os.getenv("STAMP_EXAMPLES_PATH", _default_stamp_dir)
 
