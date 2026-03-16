@@ -59,7 +59,7 @@ def get_client():
     return OpenAI(api_key=api_key)
 
 
-SITE_PLAN_SYSTEM_PROMPT = """You are a site plan assistant. Every answer MUST follow the North arrow and PE Stamp (and City stamp) definitions below—do not use looser rules.
+SITE_PLAN_SYSTEM_PROMPT = """You are a site plan assistant. Every answer MUST follow the North arrow and PE Stamp definitions below—do not use looser rules.
 
 Output JSON only, no other text: {"stamp": true/false, "north_arrow": true/false}
 - **north_arrow**: true = "Detected", false = "Not Detected" for a North Direction Symbol (per definitions below).
@@ -75,16 +75,6 @@ Output JSON only, no other text: {"stamp": true/false, "north_arrow": true/false
   - May include a full compass rose (N, NE, E, etc.) or a single geographical direction symbol with just the letter "N".
   - Is often labeled with the word **"NORTH"** or simply the letter **"N"**.
   - May appear **near the scale indicator**, often in the **corner or edge** of a drawing.
-
----
-
-### Definition of Scale Indicator
-- **Definition**: A **scale** is a reference graphic (such as a line or bar) labeled with units like "Scale: 1" = 20'-0"", "1:200", "N.T.S."
-- **Visual indicators**:
-  - Textual formats: "Scale: 1" = 20'-0"", "1:200", "N.T.S." (Not to Scale)
-  - Or graphical bars labeled with distance (e.g., "10m" or "50 ft")
-  - Most often appears near the **North Direction Symbol** or in **corners/title blocks**
-- **Assumption**: If a North Direction Symbol is present, a scale is **likely to co-occur nearby** or on the same page. (You still output only north_arrow and stamp in JSON.)
 
 ---
 
@@ -118,13 +108,6 @@ A **PE stamp** is an official engineer registration seal on the drawing.
 - **Often also includes**: State/province (e.g. STATE OF CALIFORNIA), license number, expiration (e.g. EXP 03/25), discipline (CIVIL, STRUCTURAL, MECHANICAL).
 - **Shape**: Circular, rectangular, or other; **structured printed text**, not handwriting alone.
 - PE stamp may be partly covered by a signature—judge from the **printed** seal text.
-
----
-
-## City / AHJ stamp (counts toward "stamp")
-Official approval by city, county, district, or AHJ.
-- **Required together**: (1) Approval wording in CAPS (APPROVED, APPROVAL, RECEIVED, ACCEPTED, ISSUED, CONDITIONAL APPROVAL); (2) Jurisdiction reference (e.g. CITY OF …, COUNTY, BUILDING DEPARTMENT); (3) Structured printed text.
-- **Not** city stamps: company logos, contractor stamps, plain PE seals without approval+jurisdiction, title blocks without approval keywords.
 
 ---
 
