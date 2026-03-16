@@ -71,8 +71,22 @@ A **Professional Engineer (PE) stamp** demonstrates that a professional engineer
     - **Structure**: Contains **printed, structured text** rather than handwriting.
 - **Note**: Don't Considered an item as professional engineer stamps if **Professional Title** are not available inside it.
 
+#### City Stamps (AHJ / Department Approval Stamps)
+
+A **City Stamp** is an official approval marking placed by a city, county, district, or authority having jurisdiction (AHJ) on permit plan sheets.
+
+- **Mandatory Identification Rules** (must all be true to qualify as a city stamp):
+    1. **Contains Approval Keywords**: Text must include one or more of the following words in **CAPITAL LETTERS** with **special formatting** (bold, larger font, or distinct styling):
+        **"APPROVED"**, **"APPROVAL"**, **"RECEIVED"**, **"ACCEPTED"**, **"ISSUED"**, or **"CONDITIONAL APPROVAL"**.
+    2. **Jurisdiction / Authority Reference**: Must explicitly reference a **city, county, district, or AHJ department name**. Examples:
+        - "CITY OF SAN JOSE"
+        - "SAN MATEO COUNTY"
+        - "COASTSIDE FIRE PROTECTION DISTRICT"
+        - "BUILDING DEPARTMENT", "FIRE DEPARTMENT", "PLANNING DIVISION"
+    3. **Structured Printed Text**: Text must be formal, printed, and structured (not handwritten or freeform).
+
 ### Important Instructions
-- Only detect structured, official **PE stamps** (do not consider City/AHJ approval stamps).
+- Only detect structured, official **PE stamps**.
 - Ignore handwritten marks or signatures by themselves; these are not stamps.
 - Do not confuse logos, decorative symbols, or abstract shapes with stamps.
 - A valid PE stamp may be partially covered by a signature—focus on the structured, printed portion.
@@ -141,7 +155,7 @@ Detect the North direction symbol and return a structured JSON-like response bas
 """
 
 STAMP_SYSTEM_MESSAGE = (
-    "You are a stamp detector assistant. Examine the page carefully and determine if it contains an official **Professional Engineer (PE) stamp** based on structured printed text (e.g. profession title, state, license). Do not consider City or AHJ approval stamps. Refer to the few-shot examples to see what a valid PE stamp looks like."
+    "You are a stamp detector assistant. Examine the page carefully and determine if it contains an official **Professional Engineer (PE) stamp** based on structured printed text (e.g. profession title, state, license). Refer to the few-shot examples to see what a valid PE stamp looks like."
 )
 NORTH_ARROW_SYSTEM_MESSAGE = (
     "You are a helpful assistant specialized in detecting geographic symbols in architectural, site, and construction drawings. Your task is to visually analyze the layout and determine whether the image contains a North Direction Symbol. Refer to the few-shot examples to understand what a valid North direction symbol looks like."

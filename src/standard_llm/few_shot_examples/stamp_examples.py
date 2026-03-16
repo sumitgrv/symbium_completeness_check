@@ -13,7 +13,7 @@ stamp_img_dir = os.getenv("STAMP_EXAMPLES_PATH", _default_stamp_dir)
 PE_YES = {"checkStampPresence": "Yes", "CheckStampType": [{"ProfessionalEngineeringStamp": "Yes"}]}
 PE_NO = {"checkStampPresence": "No", "CheckStampType": [{"ProfessionalEngineeringStamp": "No"}]}
 
-# Few-shot PE stamp exemplars (PE-only check; City stamps are not counted as stamp presence)
+# Few-shot PE stamp exemplars
 STAMP_EXAMPLES = [
     {
         "image_path": os.path.join(stamp_img_dir, "stamp1.png"),
@@ -48,31 +48,31 @@ STAMP_EXAMPLES = [
     {
         "image_path": os.path.join(stamp_img_dir, "stamp9.jpg"),
         "description": "Example of a rectangular engineering firm identification block used in Texas. It includes the firm name ('John Doe Engineering') and indicates registration as a Texas Registered Engineering Firm with a firm number (e.g., 'F-00000')",
-        "expected_response": PE_NO,
+        "expected_response": PE_YES,
     },
     {
         "image_path": os.path.join(stamp_img_dir, "stamp10.png"),
         "description": "City approval stamp with 'APPROVED PLANS' and central date field",
-        "expected_response": PE_NO,
+        "expected_response": PE_YES,
     },
     {
         "image_path": os.path.join(stamp_img_dir, "stamp11.jpg"),
         "description": "City Stamp - Fire department conditional approval block with bold header and date",
-        "expected_response": PE_NO,
+        "expected_response": PE_YES,
     },
     {
         "image_path": os.path.join(stamp_img_dir, "stamp12.jpg"),
         "description": "City Stamp - County 'APPROVED FOR ISSUANCE' job‑copy notice with date and signer",
-        "expected_response": PE_NO,
+        "expected_response": PE_YES,
     },
     {
         "image_path": os.path.join(stamp_img_dir, "stamp14.jpg"),
         "description": "City Stamp with municipal routing table stamp with 'ACCEPTED' statuses and received dates",
-        "expected_response": PE_NO,
+        "expected_response": PE_YES,
     },
     {
         "image_path": os.path.join(stamp_img_dir, "stamp15.jpg"),
         "description": "City Stamp - City building approvals block with permit number, received mark, and reviewer/date",
-        "expected_response": PE_NO,
+        "expected_response": PE_YES,
     },
 ]
