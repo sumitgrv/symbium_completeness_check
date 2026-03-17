@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # Ensure project root is importable when running file path directly.
@@ -308,8 +309,11 @@ def run_north_arrow_detection(client: OpenAI, image_data, model: str = DEFAULT_V
 
 def predict(client: OpenAI, image_path_or_bytes, model: str = None):
     model = model or DEFAULT_VISION_MODEL
-    stamp_out = run_stamp_detection(client, image_path_or_bytes, model=model)
-    north_out = run_north_arrow_detection(client, image_path_or_bytes, model=model)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        stamp_future = executor.submit(run_stamp_detection, client, image_path_or_bytes, model=model)
+        north_future = executor.submit(run_north_arrow_detection, client, image_path_or_bytes, model=model)
+        stamp_out = stamp_future.result()
+        north_out = north_future.result()
 
     stamp_metrics = stamp_out.get("request_metrics", {})
     north_metrics = north_out.get("request_metrics", {})
